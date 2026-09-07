@@ -76,12 +76,19 @@ export function upcomingFrom(sessions, from = startOfToday()) {
   return [...byDay.values()].sort((a, b) => a.date - b.date).slice(0, MAX_DAYS)
 }
 
+// Returns the human label plus whether it's a *relative* word (Today,
+// Tomorrow, a weekday) rather than a spelled-out date. The amber sub-date
+// under it only earns its place in the relative case — beside "Friday" it
+// says which Friday; beside "5 Feb 2027" it would just repeat the date.
 function relativeDay(date, from = startOfToday()) {
   const days = Math.round((date - from) / 86400000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Tomorrow'
-  if (days < 7) return date.toLocaleDateString(undefined, { weekday: 'long' })
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  if (days === 0) return { label: 'Today', relative: true }
+  if (days === 1) return { label: 'Tomorrow', relative: true }
+  if (days < 7) return { label: date.toLocaleDateString(undefined, { weekday: 'long' }), relative: true }
+  return {
+    label: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
+    relative: false,
+  }
 }
 
 export default function Agenda({ onOpenSession }) {
@@ -108,13 +115,17 @@ export default function Agenda({ onOpenSession }) {
     <section className="agenda">
       <h2>Coming up</h2>
       <ul className="agenda-days">
-        {days.map((day) => (
+        {days.map((day) => {
+          const when = relativeDay(day.date)
+          return (
           <li key={day.date.toDateString()}>
             <div className="agenda-when">
-              <span className="agenda-rel">{relativeDay(day.date)}</span>
-              <span className="agenda-date">
-                {day.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-              </span>
+              <span className="agenda-rel">{when.label}</span>
+              {when.relative && (
+                <span className="agenda-date">
+                  {day.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                </span>
+              )}
             </div>
             <ul className="agenda-items">
               {day.items.map((item, i) => (
@@ -133,7 +144,8 @@ export default function Agenda({ onOpenSession }) {
               ))}
             </ul>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </section>
   )
