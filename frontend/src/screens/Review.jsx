@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { fetchSession, fetchSessions } from '../api.js'
+import { fetchSession, fetchSessions, sessionReportUrl } from '../api.js'
 import Records from '../components/Records.jsx'
 import Markdown from '../components/Markdown.jsx'
 import DateCalendar from '../components/DateCalendar.jsx'
@@ -179,16 +179,25 @@ export default function Review({ onBack, initialSessionId = null }) {
                   ← All sessions
                 </button>
 
-                <p className="detail-date">
-                  {new Date(detail.timestamp).toLocaleDateString(undefined, {
-                    weekday: 'long',
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })}
-                  {' · '}
-                  {timeOf(detail.timestamp)}
-                </p>
+                <div className="detail-head">
+                  <p className="detail-date">
+                    {new Date(detail.timestamp).toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    {' · '}
+                    {timeOf(detail.timestamp)}
+                  </p>
+                  {/* A plain anchor, not a fetch: the backend sends the PDF
+                      with Content-Disposition: attachment, so the browser
+                      downloads it with the right filename and never has to
+                      hold the whole file in memory. */}
+                  <a className="report-link" href={sessionReportUrl(detail.id)}>
+                    Download PDF ↓
+                  </a>
+                </div>
 
                 {detail.summary ? (
                   <div className="detail-summary">

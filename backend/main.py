@@ -11,12 +11,13 @@ works") adds cross-session memory recall — the last piece of the loop.
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ai import answer_recall, create_live_token, generate_summary
 from db import get_client
+from report import build_session_report
 
 # How many past sessions to pull into the recall context. Retrieval is by
 # recency only — no vector search, no embeddings (CLAUDE.md). A small,
@@ -239,9 +240,13 @@ def list_sessions():
     ]
 
 
-@app.get("/sessions/{session_id}")
-def get_session(session_id: str):
-    """One session in full, including its transcript and stored tasks."""
+def _load_session_full(session_id: str) -> dict:
+    """One session in full, including its transcript and stored tasks.
+
+    Shared by the JSON detail endpoint and the PDF export below — both need
+    exactly the same row, and a PDF that could silently drift from what the
+    Review screen shows would be worse than not offering one at all.
+    """
     try:
         session = (
             get_client()
@@ -274,6 +279,34 @@ def get_session(session_id: str):
         "transcript": session.get("transcript") or "",
         "tasks": [t["text"] for t in tasks],
     }
+
+
+@app.get("/sessions/{session_id}")
+def get_session(session_id: str):
+    return _load_session_full(session_id)
+
+
+@app.get("/sessions/{session_id}/report.pdf")
+def session_report(session_id: str):
+    """One session, formatted as a standalone PDF — summary, tasks, facts
+    and the raw transcript. For handing a meeting's memory to someone who
+    isn't going to open the app: a client, a manager, a paper trail.
+
+    Read-only and re-derivable from stored data (no new schema, no AI call),
+    the same bar Review was held to when it was added — see CLAUDE.md.
+    """
+    session = _load_session_full(session_id)
+    try:
+        pdf_bytes = build_session_report(session)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to build PDF report: {exc}")
+
+    short_id = session_id.split("-")[0]
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="session-{short_id}.pdf"'},
+    )
 
 
 class RecallRequest(BaseModel):

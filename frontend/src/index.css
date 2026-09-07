@@ -687,15 +687,55 @@ details > *:not(summary) { margin-top: var(--gap-sm); }
 
 .session-detail { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 
+/* Date on the left, PDF action on the right, sharing one baseline rule. */
+.detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+  padding-bottom: var(--gap-sm);
+  border-bottom: 1px solid var(--border);
+}
+
 .detail-date {
   font-family: var(--mono);
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-faint);
-  padding-bottom: var(--gap-sm);
-  border-bottom: 1px solid var(--border);
 }
+
+/* A quiet mono link, matched to the meta voice around it — this is an
+   export affordance, not a primary action competing with Start/Recall. */
+.report-link {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  white-space: nowrap;
+  transition: color 160ms var(--ease);
+}
+
+.report-link:hover { color: var(--accent-bright); }
+.report-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-xs); }
+
+/* On the Summary screen it sits in a row of pill buttons, so it takes the
+   pill outline rather than reading as loose text between two buttons. */
+.report-link-btn {
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  padding: 0.72rem 1.5rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-soft);
+}
+
+.report-link-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
 
 .detail-summary { line-height: 1.6; }
 

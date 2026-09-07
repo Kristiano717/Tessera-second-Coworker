@@ -83,6 +83,15 @@ export async function fetchSession(id) {
   return res.json() // { id, timestamp, summary, facts, transcript, tasks }
 }
 
+// The PDF report route. A plain function rather than a fetch wrapper: the
+// backend already sets Content-Disposition: attachment, so pointing the
+// browser at this same-origin URL downloads the file with the right name
+// and streams it straight to disk — no blob to hold in memory, and it works
+// identically through Vite's proxy in dev and Vercel's rewrite in prod.
+export function sessionReportUrl(sessionId) {
+  return `${API_BASE}/sessions/${sessionId}/report.pdf`
+}
+
 export async function askRecall(question) {
   const res = await fetch(`${API_BASE}/recall`, {
     method: 'POST',

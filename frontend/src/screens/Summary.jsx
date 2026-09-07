@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { summarizeSession } from '../api.js'
+import { summarizeSession, sessionReportUrl } from '../api.js'
 import Records from '../components/Records.jsx'
 import DateCalendar from '../components/DateCalendar.jsx'
 
@@ -113,6 +113,13 @@ export default function Summary({ session, onRestart, onRecall }) {
       <div className="controls-row">
         <button className="secondary" onClick={onRestart}>Back to Home</button>
         <button className="secondary" onClick={onRecall}>Ask About Past Sessions</button>
+        {/* Only once extraction has stored the summary and facts — before
+            that the PDF would render a half-empty session. */}
+        {aiState === 'done' && (
+          <a className="report-link report-link-btn" href={sessionReportUrl(sessionId)}>
+            Download PDF ↓
+          </a>
+        )}
       </div>
     </div>
   )
