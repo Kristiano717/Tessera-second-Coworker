@@ -949,13 +949,18 @@ details > *:not(summary) { margin-top: var(--gap-sm); }
 
 .tf-record {
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* Fixed tag column so category names of different lengths ("Decision" vs
+     "Action Item") still line their text up down the panel. */
+  grid-template-columns: 5.7rem 1fr;
   gap: 0.6rem;
   align-items: baseline;
   font-size: 0.92rem;
   line-height: 1.5;
   color: var(--text);
 }
+
+/* The tag sits at the start of its fixed column rather than stretching. */
+.tf-record .tag { justify-self: start; }
 
 .tf-record .tag { font-style: normal; }
 .tf-record .tag.fact { color: var(--fact); background: var(--fact-soft); }
@@ -1179,7 +1184,18 @@ details > *:not(summary) { margin-top: var(--gap-sm); }
 .agenda-items button:hover { background: var(--surface-sunk); }
 .agenda-items button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.agenda-text { font-size: 0.93rem; line-height: 1.45; color: var(--text); }
+/* Clamp to two lines: a raw wake-phrase capture can be a run-on carrying
+   several sentences, and one of those must not swallow the whole agenda.
+   Display-only — the full text is still there for the row's click target. */
+.agenda-text {
+  font-size: 0.93rem;
+  line-height: 1.45;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 .agenda-source {
   font-family: var(--mono);

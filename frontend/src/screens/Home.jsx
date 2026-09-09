@@ -39,10 +39,14 @@ export default function Home({ onStart, onRecall, onReview, onOpenSession }) {
 
         <div className="tf-panel tf-kept">
           <span className="tf-label">What was kept</span>
-          <div className="tf-record"><em className="tag fact">fact</em>Pricing sheet is due Friday</div>
-          <div className="tf-record"><em className="tag fact">fact</em>Redesign moved to Q3</div>
-          <div className="tf-record"><em className="tag fact">fact</em>Client prefers weekly check-ins</div>
-          <div className="tf-record"><em className="tag task">task</em>Send the updated deck</div>
+          {/* Typed by category, not dumped into one "facts" pile — the actual
+              differentiator, previewed. Each line above becomes one of the
+              six kinds; colour marks actionable (green) vs settled/known
+              (blue), the tag names the exact category. */}
+          <div className="tf-record"><em className="tag fact">Requirement</em>Pricing sheet due Friday</div>
+          <div className="tf-record"><em className="tag fact">Decision</em>Redesign moved to Q3</div>
+          <div className="tf-record"><em className="tag fact">Preference</em>Client prefers weekly check-ins</div>
+          <div className="tf-record"><em className="tag task">Action Item</em>Send the updated deck</div>
         </div>
       </div>
 
