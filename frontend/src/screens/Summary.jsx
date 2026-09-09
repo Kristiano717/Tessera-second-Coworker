@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { summarizeSession, sessionReportUrl } from '../api.js'
 import Records from '../components/Records.jsx'
+import Memory from '../components/Memory.jsx'
 import DateCalendar from '../components/DateCalendar.jsx'
 
 // Milestone 4 ("summary works"): calls the backend's single end-of-session
@@ -89,8 +90,10 @@ export default function Summary({ session, onRestart, onRecall }) {
             sessionAt={Date.now()}
           />
 
-          <Records items={aiResult.tasks} kind="task" label="Tasks" empty="None extracted." />
-          <Records items={aiResult.facts} kind="fact" label="Key facts" empty="None extracted." />
+          {/* The typed memory objects — the differentiator, shown in full
+              rather than split into a tasks pile and a facts pile. Supersedes
+              the two flat Records lists that used to sit here. */}
+          <Memory items={aiResult.memory} label="Extracted memory" />
         </>
       )}
 

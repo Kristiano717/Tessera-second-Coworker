@@ -92,6 +92,46 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+# Display order and colour family for the six memory categories — kept in
+# step with frontend/src/components/Memory.jsx so the PDF and the app group
+# and colour the same way. Actionable kinds take the task colour, settled/
+# known kinds the fact colour.
+_CATEGORY_ORDER = ["Action Item", "Task", "Decision", "Requirement", "Preference", "Fact"]
+_ACTIONABLE = {"Action Item", "Task"}
+
+_STYLE_MEMORY_ITEM = ParagraphStyle(
+    "MemoryItem", parent=_STYLE_BODY, leftIndent=14, spaceAfter=3,
+)
+
+
+def _append_memory(story: list, memory: list) -> None:
+    """Renders typed memory objects grouped by category. Each surviving item
+    is a `<category> — <text>` line, the category tag coloured by family, so
+    a glance shows the six-way structure the product is built on."""
+    valid = {c: [] for c in _CATEGORY_ORDER}
+    for obj in memory:
+        if not isinstance(obj, dict):
+            continue
+        category = (obj.get("category") or "").strip()
+        text = (obj.get("text") or "").strip()
+        if category in valid and text:
+            valid[category].append(text)
+
+    for category in _CATEGORY_ORDER:
+        items = valid[category]
+        if not items:
+            continue
+        colour = TASK if category in _ACTIONABLE else FACT
+        tag = colour.hexval()[2:]  # 0x... -> rrggbb for the <font> tag
+        for text in items:
+            story.append(
+                Paragraph(
+                    f'<font color="#{tag}"><b>{_escape(category)}</b></font> &nbsp; {_escape(text)}',
+                    _STYLE_MEMORY_ITEM,
+                )
+            )
+
+
 def build_session_report(session: dict) -> bytes:
     """session: {id, timestamp, summary, facts, tasks, transcript} — the
     same shape GET /sessions/{id} returns. Returns PDF bytes."""
@@ -145,19 +185,28 @@ def build_session_report(session: dict) -> bytes:
             _STYLE_HINT,
         ))
 
-    tasks = session.get("tasks") or []
-    story.append(Paragraph(f"TASKS ({len(tasks)})", _STYLE_H2))
-    if tasks:
-        story.append(_bullet_list([_escape(t) for t in tasks], _STYLE_TASK_ITEM, TASK))
+    # When the session carries typed memory, the report leads with it — the
+    # categories are the point — and skips the flat tasks/facts sections,
+    # exactly as the Review screen does. Older sessions (and pre-migration
+    # projects) have no memory array, so they fall back to tasks/facts.
+    memory = session.get("memory") or []
+    if memory:
+        story.append(Paragraph(f"STRUCTURED MEMORY ({len(memory)})", _STYLE_H2))
+        _append_memory(story, memory)
     else:
-        story.append(Paragraph("None extracted.", _STYLE_HINT))
+        tasks = session.get("tasks") or []
+        story.append(Paragraph(f"TASKS ({len(tasks)})", _STYLE_H2))
+        if tasks:
+            story.append(_bullet_list([_escape(t) for t in tasks], _STYLE_TASK_ITEM, TASK))
+        else:
+            story.append(Paragraph("None extracted.", _STYLE_HINT))
 
-    facts = session.get("facts") or []
-    story.append(Paragraph(f"KEY FACTS ({len(facts)})", _STYLE_H2))
-    if facts:
-        story.append(_bullet_list([_escape(f) for f in facts], _STYLE_FACT_ITEM, FACT))
-    else:
-        story.append(Paragraph("None extracted.", _STYLE_HINT))
+        facts = session.get("facts") or []
+        story.append(Paragraph(f"KEY FACTS ({len(facts)})", _STYLE_H2))
+        if facts:
+            story.append(_bullet_list([_escape(f) for f in facts], _STYLE_FACT_ITEM, FACT))
+        else:
+            story.append(Paragraph("None extracted.", _STYLE_HINT))
 
     transcript = (session.get("transcript") or "").strip()
     story.append(Paragraph("RAW TRANSCRIPT", _STYLE_H2))

@@ -59,14 +59,34 @@ GEMINI_LIVE_MODEL = "gemini-3.5-transcribe-live"
 # transcripts — 512 measured ~7s and is the next step up.
 GEMINI_THINKING_BUDGET = 128
 
+# The six fixed memory categories, per CLAUDE.md's differentiator. The order
+# is the order they're shown in — actionable first (Action Item, Task), then
+# the settled/known kinds. Kept here as the single source of truth for both
+# the response schema's enum and the post-hoc normalisation below.
+MEMORY_CATEGORIES = ["Action Item", "Task", "Decision", "Requirement", "Preference", "Fact"]
+_TASK_CATEGORIES = {"Task", "Action Item"}
+
 EXTRACTION_SCHEMA = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
+        # The structured heart of the extraction: typed memory objects, not
+        # just flattened strings. tasks/facts below are views of this.
+        "memory": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "enum": MEMORY_CATEGORIES},
+                    "text": {"type": "string"},
+                },
+                "required": ["category", "text"],
+            },
+        },
         "tasks": {"type": "array", "items": {"type": "string"}},
         "facts": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["summary", "tasks", "facts"],
+    "required": ["summary", "memory", "tasks", "facts"],
 }
 
 
@@ -148,10 +168,44 @@ def _call_llm(system_instruction: str, user_content: str, schema: dict | None = 
     return _call_openai(system_instruction, user_content, schema)
 
 
+def _normalize_memory(extracted: dict) -> None:
+    """Cleans the `memory` array in place and guarantees the contract holds.
+
+    The model is asked to keep `tasks`/`facts` as views of `memory`, but a
+    prototype shouldn't trust that blindly on every call. This drops memory
+    objects with an unknown category or empty text, and — the important part
+    — backfills `memory` from `tasks`/`facts` if the model returned those but
+    not the structured list, so an older-style response still yields typed
+    objects (Task/Fact) rather than an empty categories view downstream.
+    """
+    valid = set(MEMORY_CATEGORIES)
+    memory = []
+    for obj in extracted.get("memory") or []:
+        if not isinstance(obj, dict):
+            continue
+        category = (obj.get("category") or "").strip()
+        text = (obj.get("text") or "").strip()
+        if category in valid and text:
+            memory.append({"category": category, "text": text})
+
+    if not memory:
+        # Fall back to the flat views: every task becomes a Task, every fact
+        # a Fact. Coarser than the model's own categorisation, but never
+        # empty when there was actually content.
+        memory = [{"category": "Task", "text": t} for t in (extracted.get("tasks") or []) if t]
+        memory += [{"category": "Fact", "text": f} for f in (extracted.get("facts") or []) if f]
+
+    extracted["memory"] = memory
+
+
 def generate_summary(transcript: str) -> dict:
-    """One post-session call. Returns {summary, tasks, facts}."""
+    """One post-session call. Returns {summary, memory, tasks, facts} where
+    `memory` is the typed [{category, text}] list and tasks/facts are its
+    flattened views."""
     raw = _call_llm(EXTRACTION_INSTRUCTION, f"Transcript:\n{transcript}", EXTRACTION_SCHEMA)
-    return json.loads(raw)
+    extracted = json.loads(raw)
+    _normalize_memory(extracted)
+    return extracted
 
 
 def format_session_context(sessions: list[dict]) -> str:

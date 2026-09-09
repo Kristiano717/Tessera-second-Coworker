@@ -37,18 +37,28 @@ Classify everything you find into exactly one of these six categories.
 Do not invent new categories. Do not extract small talk, filler, or pure
 narration — those aren't memory objects.
 
-Return your answer using only these three fields:
+Return your answer using only these four fields:
 
 - `summary`: a short prose paragraph (2-4 sentences) capturing what
   actually happened in the session, written so someone could answer a
   question like "what did we decide in that meeting?" from this text
   alone, without re-reading the transcript.
-- `tasks`: a flat array of strings — every Task and Action Item found,
-  each as a short imperative phrase (e.g. "Send the deck to the client").
-- `facts`: a flat array of strings — every Decision, Preference,
-  Requirement, and Fact found, each as a short standalone statement (e.g.
-  "Decided to launch in March", "Client prefers weekly check-ins over
-  daily ones").
+- `memory`: an array of the memory objects you extracted, each an object
+  `{"category": <one of the six category names>, "text": <short statement>}`.
+  This is the structured heart of the extraction — every Task, Decision,
+  Preference, Requirement, Fact and Action Item you found, each carrying
+  its category. Write each `text` as a short standalone statement whose
+  attribution survives on its own (e.g. `{"category": "Preference", "text":
+  "Client prefers weekly check-ins over daily ones"}`).
+- `tasks`: a flat array of strings — the `text` of every `memory` object
+  whose category is Task or Action Item, each as a short imperative phrase
+  (e.g. "Send the deck to the client"). This is a flattened view of the
+  actionable subset of `memory`, kept for the task tray.
+- `facts`: a flat array of strings — the `text` of every `memory` object
+  whose category is Decision, Preference, Requirement or Fact. This is a
+  flattened view of the non-actionable subset of `memory`.
 
-If the transcript has no content for a field, return an empty array —
-never omit the field, never invent content that isn't in the transcript.
+`tasks` and `facts` together must cover exactly the same items as `memory`
+— they are just `memory` split by category, never a different set. If the
+transcript has no content for a field, return an empty array — never omit
+the field, never invent content that isn't in the transcript.

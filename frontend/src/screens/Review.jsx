@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchSession, fetchSessions, sessionReportUrl } from '../api.js'
 import Records from '../components/Records.jsx'
+import Memory from '../components/Memory.jsx'
 import Markdown from '../components/Markdown.jsx'
 import DateCalendar from '../components/DateCalendar.jsx'
 
@@ -226,8 +227,19 @@ export default function Review({ onBack, initialSessionId = null }) {
                   sessionAt={detail.timestamp}
                 />
 
-                <Records items={detail.tasks} kind="task" label="Tasks" empty="None extracted." />
-                <Records items={detail.facts} kind="fact" label="Key facts" empty="None extracted." />
+                {/* Prefer the typed memory view when this session has it —
+                    sessions summarised after the memory column was added
+                    carry categories. Older rows (and pre-migration projects)
+                    have no memory array, so fall back to the flat tasks and
+                    facts lists they were stored with. */}
+                {detail.memory?.length > 0 ? (
+                  <Memory items={detail.memory} label="Memory" />
+                ) : (
+                  <>
+                    <Records items={detail.tasks} kind="task" label="Tasks" empty="None extracted." />
+                    <Records items={detail.facts} kind="fact" label="Key facts" empty="None extracted." />
+                  </>
+                )}
 
                 <details>
                   <summary>Raw transcript</summary>

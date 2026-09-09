@@ -28,3 +28,27 @@ def get_client() -> Client:
             )
         _client = create_client(url, key)
     return _client
+
+
+# Whether sessions has the `memory` jsonb column (database/schema.sql). It was
+# added after the original schema, and DDL can't be run through the REST
+# client this backend uses — so a project that hasn't run the migration yet
+# simply doesn't have it. Everything that touches `memory` checks this first,
+# so the app runs identically with or without the column: without it, typed
+# categories still show on the fresh Summary screen (straight from the
+# extraction response) but aren't persisted for Review. Probed once and
+# cached, since the schema doesn't change under a running process.
+_has_memory_column: bool | None = None
+
+
+def has_memory_column() -> bool:
+    global _has_memory_column
+    if _has_memory_column is None:
+        try:
+            get_client().table("sessions").select("memory").limit(1).execute()
+            _has_memory_column = True
+        except Exception:
+            # PostgREST 400s when the column is unknown — treat any failure
+            # here as "not present" and carry on without persistence.
+            _has_memory_column = False
+    return _has_memory_column

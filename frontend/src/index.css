@@ -532,6 +532,11 @@ button:disabled { opacity: 0.45; cursor: default; transform: none; }
 .records.is-fact .tag { color: var(--fact); background: var(--fact-soft); }
 .records.is-live .tag { color: var(--accent); background: var(--accent-soft); }
 
+/* Typed memory: colour by family (actionable vs settled/known), category
+   name carried by the tag label. Two colours, six labels. */
+.records.is-memory li[data-family='action'] .tag { color: var(--task); background: var(--task-soft); }
+.records.is-memory li[data-family='knowledge'] .tag { color: var(--fact); background: var(--fact-soft); }
+
 /* ---------- summary ---------- */
 
 .saved-note {

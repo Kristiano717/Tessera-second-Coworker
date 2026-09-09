@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from ai import answer_recall, create_live_token, generate_summary
-from db import get_client
+from db import get_client, has_memory_column
 from report import build_session_report
 
 # How many past sessions to pull into the recall context. Retrieval is by
@@ -161,14 +161,17 @@ def summarize_session(session_id: str):
     # structure rather than being flattened into prose, which is the whole
     # point of the "structured memory objects" differentiator. Recall
     # (Milestone 5) reads both.
+    #
+    # `memory` — the fully typed [{category, text}] list — is written into
+    # the same row only when the column exists (see db.has_memory_column):
+    # it's folded into this one update so persisting categories costs no
+    # extra round trip, and left out entirely otherwise, so a project that
+    # hasn't run the migration still saves summary+facts exactly as before.
+    update = {"summary": extracted["summary"], "facts": extracted["facts"]}
+    if has_memory_column():
+        update["memory"] = extracted["memory"]
     try:
-        (
-            get_client()
-            .table("sessions")
-            .update({"summary": extracted["summary"], "facts": extracted["facts"]})
-            .eq("id", session_id)
-            .execute()
-        )
+        get_client().table("sessions").update(update).eq("id", session_id).execute()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to save summary: {exc}")
 
@@ -247,11 +250,18 @@ def _load_session_full(session_id: str) -> dict:
     exactly the same row, and a PDF that could silently drift from what the
     Review screen shows would be worse than not offering one at all.
     """
+    # `memory` is selected only when the column exists — asking PostgREST for
+    # an unknown column 400s the whole read, so a pre-migration project must
+    # not reference it. Older rows saved before the column existed come back
+    # with memory null; the client falls back to tasks/facts for those.
+    columns = "id,timestamp,summary,facts,transcript"
+    if has_memory_column():
+        columns += ",memory"
     try:
         session = (
             get_client()
             .table("sessions")
-            .select("id,timestamp,summary,facts,transcript")
+            .select(columns)
             .eq("id", session_id)
             .single()
             .execute()
@@ -276,6 +286,7 @@ def _load_session_full(session_id: str) -> dict:
         "timestamp": session["timestamp"],
         "summary": session.get("summary"),
         "facts": session.get("facts") or [],
+        "memory": session.get("memory") or [],
         "transcript": session.get("transcript") or "",
         "tasks": [t["text"] for t in tasks],
     }

@@ -85,6 +85,7 @@ Keep responsibilities separated. Don't create new top-level folders without a re
 | transcript | text |
 | summary | text |
 | facts | jsonb (array of strings) |
+| memory | jsonb (array of {category, text}) |
 | timestamp | datetime |
 
 > `facts` was added during Milestone 4 with explicit sign-off — it wasn't in
@@ -92,6 +93,17 @@ Keep responsibilities separated. Don't create new top-level folders without a re
 > and the only alternative was flattening it into the `summary` prose, which
 > throws away exactly the structure this product is betting on. Recall reads
 > both `summary` and `facts`.
+>
+> `memory` was added later, also with explicit sign-off, to make the core
+> differentiator literally true in storage. `facts` and the tasks table are
+> flat, category-less lists; `memory` holds the same items as fully typed
+> objects `{category, text}` across the six allowed categories, so the
+> product stores *structured memory objects*, not just strings. It is
+> additive and optional: the backend only reads/writes it when the column is
+> present (`db.has_memory_column`), so a project that hasn't run the
+> migration still works, and rows written before it existed stay valid.
+> The extraction contract remains a superset of the locked one — see the
+> AI Behavior Rules note below.
 
 **tasks**
 
@@ -112,15 +124,26 @@ Keep responsibilities separated. Don't create new top-level folders without a re
 
 Nothing else runs continuously. No per-sentence AI calls, no background extraction loop.
 
-**After the meeting ends**, send the transcript once to the LLM with a prompt that returns exactly:
+**After the meeting ends**, send the transcript once to the LLM with a prompt that returns:
 
 ```json
 {
   "summary": "...",
+  "memory": [{ "category": "Decision", "text": "..." }],
   "tasks": ["..."],
   "facts": ["..."]
 }
 ```
+
+> **Deviation from the locked contract, signed off.** The original spec
+> returned exactly `{summary, tasks, facts}`. `memory` was added as a
+> superset: it carries every extracted item as a typed `{category, text}`
+> object across the six allowed categories, and `tasks`/`facts` are now
+> defined as flattened views of it (`tasks` = the Task/Action Item texts,
+> `facts` = the Decision/Preference/Requirement/Fact texts). Nothing that
+> read `tasks` or `facts` had to change — this only stops the categories,
+> which the model was already computing internally, from being thrown away.
+> The single post-session call rule is unchanged; still exactly one call.
 
 Store the result. Don't add extra fields the schema doesn't have a place for.
 
