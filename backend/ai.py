@@ -25,6 +25,7 @@ up, but are UNVERIFIED — this environment has no OPENAI_API_KEY to test.
 
 import json
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -162,10 +163,36 @@ def _call_openai(system_instruction: str, user_content: str, schema: dict | None
     return response.choices[0].message.content
 
 
+# Transient failures worth one more try: the free tier's per-minute rate
+# limit (429) and the provider being briefly overloaded or unavailable (500/
+# 503). A demo firing a couple of calls in quick succession can trip the rate
+# limit, and a bare error banner mid-demo is the worst possible moment for
+# one. Deliberately narrow: a 400 (bad request / invalid schema) is a bug
+# that retrying only hides, so those re-raise immediately.
+_TRANSIENT_MARKERS = (
+    "429", "resource_exhausted", "rate limit", "rate_limit",
+    "500", "503", "unavailable", "overloaded", "internal error", "deadline",
+)
+_RETRY_BACKOFFS = (1.5, 4.0)  # seconds; two retries, longer the second time
+
+
+def _is_transient(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _TRANSIENT_MARKERS)
+
+
 def _call_llm(system_instruction: str, user_content: str, schema: dict | None = None) -> str:
-    if _active_provider() == "gemini":
-        return _call_gemini(system_instruction, user_content, schema)
-    return _call_openai(system_instruction, user_content, schema)
+    call = _call_gemini if _active_provider() == "gemini" else _call_openai
+    # temperature is 0 on both calls, so a retry returns the same answer —
+    # this only rescues a transient failure, it doesn't make the demo
+    # nondeterministic (CLAUDE.md engineering principle #3).
+    for backoff in (*_RETRY_BACKOFFS, None):
+        try:
+            return call(system_instruction, user_content, schema)
+        except Exception as exc:
+            if backoff is None or not _is_transient(exc):
+                raise
+            time.sleep(backoff)
 
 
 def _normalize_memory(extracted: dict) -> None:
