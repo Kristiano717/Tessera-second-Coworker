@@ -165,10 +165,17 @@ def format_session_context(sessions: list[dict]) -> str:
         date = (s.get("timestamp") or "")[:10]
         summary = (s.get("summary") or "").strip() or "(no summary generated for this session)"
         facts = s.get("facts") or []
+        tasks = s.get("tasks") or []
         lines = [f"Meeting on {date}:", f"Summary: {summary}"]
         if facts:
             lines.append("Facts:")
             lines.extend(f"- {f}" for f in facts)
+        # Open tasks are given as their own labelled block so "what's still
+        # outstanding?" is answered from stored tasks, not reconstructed from
+        # the summary prose.
+        if tasks:
+            lines.append("Open tasks:")
+            lines.extend(f"- {t}" for t in tasks)
         blocks.append("\n".join(lines))
     return "\n\n".join(blocks)
 

@@ -619,6 +619,42 @@ details > *:not(summary) { margin-top: var(--gap-sm); }
   box-shadow: var(--shadow);
 }
 
+/* Source attribution: a mono label plus one dated chip per cited meeting. */
+.recall-sources {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--gap-xs);
+  margin-top: var(--gap);
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--border);
+}
+
+.recall-sources-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin-right: 0.15rem;
+}
+
+.source-chip {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  padding: 0.24rem 0.66rem;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  transition: border-color 160ms var(--ease), color 160ms var(--ease);
+}
+
+.source-chip:hover { border-color: var(--accent); color: var(--accent-bright); }
+.source-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .recall-meta {
   font-family: var(--mono);
   font-size: 0.66rem;

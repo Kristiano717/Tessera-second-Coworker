@@ -323,7 +323,11 @@ def recall(body: RecallRequest):
         result = (
             get_client()
             .table("sessions")
-            .select("summary,facts,timestamp")
+            # id is selected too now, so the open tasks for these sessions can
+            # be pulled in as recall context (below). Without them the model
+            # had to reconstruct outstanding work from summary prose, which is
+            # exactly the kind of guessing this product is meant not to do.
+            .select("id,summary,facts,timestamp")
             # Only summarized sessions are useful context — a row whose
             # summary is still null was never run through extraction.
             .not_.is_("summary", "null")
@@ -338,9 +342,37 @@ def recall(body: RecallRequest):
     # reversed for the prompt so the model reads them oldest-to-newest.
     sessions = list(reversed(result.data))
 
+    # Attach each session's open tasks so "what's still outstanding?" is
+    # answered from stored tasks, not inferred from the summary. One query
+    # for all of them rather than per-session round trips.
+    ids = [s["id"] for s in sessions]
+    if ids:
+        try:
+            task_rows = (
+                get_client()
+                .table("tasks")
+                .select("session_id,text")
+                .in_("session_id", ids)
+                .execute()
+            ).data
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to load tasks for recall: {exc}")
+        tasks_by_session: dict[str, list[str]] = {}
+        for t in task_rows:
+            tasks_by_session.setdefault(t["session_id"], []).append(t["text"])
+        for s in sessions:
+            s["tasks"] = tasks_by_session.get(s["id"], [])
+
     try:
         answer = answer_recall(question, sessions)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Recall failed: {exc}")
 
-    return {"answer": answer, "sessions_searched": len(sessions)}
+    # The meetings that actually formed the context, newest first, so the UI
+    # can show the answer's sources — the "trustworthy, sourced memory" claim
+    # is more convincing shown than asserted.
+    sources = [
+        {"id": s["id"], "timestamp": s["timestamp"]}
+        for s in sorted(sessions, key=lambda s: s["timestamp"], reverse=True)
+    ]
+    return {"answer": answer, "sessions_searched": len(sessions), "sources": sources}

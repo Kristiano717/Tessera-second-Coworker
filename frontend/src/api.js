@@ -102,5 +102,5 @@ export async function askRecall(question) {
     const body = await res.text()
     throw new Error(`Recall failed (${res.status}): ${body}`)
   }
-  return res.json() // { answer, sessions_searched }
+  return res.json() // { answer, sessions_searched, sources: [{ id, timestamp }] }
 }

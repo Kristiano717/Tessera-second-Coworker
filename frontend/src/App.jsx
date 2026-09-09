@@ -57,7 +57,7 @@ export default function App() {
           onRecall={() => setScreen('recall')}
         />
       )}
-      {screen === 'recall' && <Recall onBack={() => setScreen('home')} />}
+      {screen === 'recall' && <Recall onBack={() => setScreen('home')} onOpenSession={openSession} />}
       {screen === 'review' && (
         <Review onBack={() => setScreen('home')} initialSessionId={reviewSessionId} />
       )}
