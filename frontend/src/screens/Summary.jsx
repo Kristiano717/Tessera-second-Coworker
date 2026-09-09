@@ -114,9 +114,16 @@ export default function Summary({ session, onRestart, onRecall }) {
         <button className="secondary" onClick={onRestart}>Back to Home</button>
         <button className="secondary" onClick={onRecall}>Ask About Past Sessions</button>
         {/* Only once extraction has stored the summary and facts — before
-            that the PDF would render a half-empty session. */}
+            that the PDF would render a half-empty session. Opens in a new
+            tab so a backend error can't navigate this screen away and lose
+            the just-finished session (see the note in Review.jsx). */}
         {aiState === 'done' && (
-          <a className="report-link report-link-btn" href={sessionReportUrl(sessionId)}>
+          <a
+            className="report-link report-link-btn"
+            href={sessionReportUrl(sessionId)}
+            target="_blank"
+            rel="noopener"
+          >
             Download PDF ↓
           </a>
         )}

@@ -193,8 +193,17 @@ export default function Review({ onBack, initialSessionId = null }) {
                   {/* A plain anchor, not a fetch: the backend sends the PDF
                       with Content-Disposition: attachment, so the browser
                       downloads it with the right filename and never has to
-                      hold the whole file in memory. */}
-                  <a className="report-link" href={sessionReportUrl(detail.id)}>
+                      hold the whole file in memory. target=_blank is the
+                      safety net — on a success the download fires and the
+                      blank tab closes itself, but if the backend ever errors
+                      the JSON lands in a throwaway tab instead of navigating
+                      this single-page app away and losing the user's place. */}
+                  <a
+                    className="report-link"
+                    href={sessionReportUrl(detail.id)}
+                    target="_blank"
+                    rel="noopener"
+                  >
                     Download PDF ↓
                   </a>
                 </div>
