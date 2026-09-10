@@ -150,6 +150,15 @@ export function useLiveTranscript() {
       // carries on with the microphone alone.
       if (err?.name === 'NotAllowedError') {
         setError('Only your microphone is being captured — the other side was not shared.')
+      } else if (err?.name === 'NotSupportedError' || err?.name === 'InvalidStateError') {
+        // Almost always the transient-activation problem: the share must be
+        // started by a direct click. Point at the button rather than dumping
+        // the raw DOMException, which reads as a dead end.
+        setError(
+          'To capture the other side, press "Share the meeting tab" directly, then choose ' +
+            'the Chrome Tab option and tick "Also share tab audio". (Tab-audio sharing is ' +
+            'desktop Chrome/Edge only — it isn\'t available on mobile or in Firefox/Safari.)',
+        )
       } else {
         setError(`Could not capture the other participant: ${err?.message || err}`)
       }
@@ -199,8 +208,16 @@ export function useLiveTranscript() {
       return
     }
 
-    await captureRemote()
-  }, [appendFinal, captureRemote])
+    // Capturing the other participant is NOT auto-fired here on purpose.
+    // getDisplayMedia requires "transient activation" — a recent user gesture
+    // — and the awaits above (getUserMedia, then the token fetch + WebSocket
+    // connect for the mic transcriber) burn through the few seconds the "Start
+    // capture" click bought us. Called from here, getDisplayMedia lands after
+    // the gesture has expired and Chrome refuses it (surfacing as a scary
+    // "Not supported" / NotAllowedError). So the other side is added by an
+    // explicit press of "Share the meeting tab", which calls captureRemote()
+    // straight from a fresh click — see LiveSession's share prompt.
+  }, [appendFinal])
 
   useEffect(() => stop, [stop])
 

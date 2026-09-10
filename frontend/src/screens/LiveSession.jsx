@@ -131,15 +131,17 @@ export default function LiveSession({ onEnd, onCancel }) {
             the web, or Teams.
           </li>
           <li>
-            Press <strong>Start capture</strong>. Your browser asks for the microphone first,
-            then which tab to share.
+            Press <strong>Start capture</strong> and allow the microphone. Recording of your
+            side begins immediately.
           </li>
           <li>
-            Choose the <strong>Chrome Tab</strong> option, pick the meeting tab, and tick{' '}
+            Then press <strong>Share the meeting tab</strong>, choose the{' '}
+            <strong>Chrome Tab</strong> option, pick the meeting tab, and tick{' '}
             <strong>“Also share tab audio”</strong>.
             <span className="emphasis-note">
-              That checkbox is the whole thing. Without it the call is shared silently and
-              only your own side gets transcribed.
+              That checkbox is the whole thing. Without it the tab is shared silently and only
+              your own side gets transcribed. The other person’s voice comes from a shared tab,
+              never from your speakers — playing it out loud won’t be picked up.
             </span>
           </li>
         </ol>
@@ -206,11 +208,12 @@ export default function LiveSession({ onEnd, onCancel }) {
 
       {error && <div className="error-banner">{error}</div>}
 
-      {/* The other side isn't being captured. Offer the fix inline rather
-          than making the user end a working session and start over. */}
+      {/* Adding the other side is a deliberate press, not a fallback:
+          getDisplayMedia needs a fresh user gesture, so it has to be started
+          from this button directly (see the note in useLiveTranscript). */}
       {isListening && !hasRemote && captureRemote && (
         <div className="notice share-prompt">
-          <span>Only your side is being recorded.</span>
+          <span>Recording your side. To capture the other participant, share their tab:</span>
           <button type="button" onClick={captureRemote}>Share the meeting tab</button>
         </div>
       )}
