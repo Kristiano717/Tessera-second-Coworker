@@ -126,6 +126,9 @@ second run isn't a demo.
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** is the system design: the two
 audio paths, why audio bypasses the backend, how echo and session expiry are
 handled, and the request lifecycle for every route.
+**[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** is the honest counterpart — what
+breaks as the data grows (the recall window, the pgvector index, auth/RLS, the
+embedding pipeline) and the bounded fix for each.
 
 ```
 backend/     FastAPI app, Supabase client, LLM + embedding calls, demo seeder, embed backfill
