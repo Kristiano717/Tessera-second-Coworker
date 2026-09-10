@@ -68,14 +68,27 @@ export default function LiveSession({ onEnd, onCancel }) {
 
   const handleEnd = async () => {
     stop()
-    const transcript = finalText.trim()
 
-    // Nothing was captured, so there's no session to save. Guarding here
-    // rather than letting the POST through matters for the demo: the row
-    // would save fine and only fail at the summarize step, which surfaces
-    // as a red 400 on the Summary screen — and the empty session still
-    // counts against the newest-10 window that recall retrieves from, so a
-    // few stray taps quietly crowd real meetings out of the answer.
+    // Save everything that was transcribed, not just the finalized lines. A
+    // sentence still mid-flight when the session ends lives only in the
+    // interim text, and the recogniser only commits a "final" on a clear
+    // pause — so a real conversation that never paused (or whose socket was
+    // reconnecting) would otherwise be thrown away as "nothing transcribed".
+    // stop() clears the interim via setState, but this closure still holds the
+    // values from the last render, so they're read here before that lands.
+    const trailing = [
+      interimText.trim() && `You: ${interimText.trim()}`,
+      interimRemote.trim() && `Them: ${interimRemote.trim()}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    const transcript = [finalText.trim(), trailing].filter(Boolean).join('\n').trim()
+
+    // Truly nothing was captured — no session to save. Guarding here rather
+    // than letting the POST through matters for the demo: the row would save
+    // fine and only fail at the summarize step (a red 400 on Summary), and the
+    // empty session still counts against the window recall retrieves from, so
+    // a few stray taps quietly crowd real meetings out of the answer.
     if (!transcript) {
       setSaveState('empty')
       return
