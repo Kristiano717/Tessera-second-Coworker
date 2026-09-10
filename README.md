@@ -52,9 +52,9 @@ flowchart LR
   A[Your mic] -->|Gemini Live| B[Live transcript<br/>speaker-labelled]
   A2[Their audio - shared tab] -->|Gemini Live| B
   B -->|regex, client-side| C[Wake phrase - task tray]
-  B -->|once, at session end| D[LLM extraction]
-  D -->|summary + tasks + facts| E[(Supabase)]
-  E -->|newest 10 sessions| F[Recall - answers from stored memory only]
+  B -->|once, at session end| D[LLM extraction + embedding]
+  D -->|summary + typed memory| E[(Supabase + pgvector)]
+  E -->|semantic search / recency| F[Recall - answers from stored memory only]
 ```
 
 1. **Start a session.** Speech renders live in the browser — no server round-trip.
@@ -62,19 +62,25 @@ flowchart LR
    appears in the tray instantly. This is a regex on the transcript stream, not a
    second model running continuously.
 3. **End the session.** The transcript goes to the LLM **once** and comes back as
-   strict JSON: `{summary, tasks, facts}`.
+   strict JSON: `{summary, memory, tasks, facts}` — every item typed by one of the
+   six categories, persisted as structured objects rather than flattened to text.
 4. **Ask later.** *"What did I decide in yesterday's meeting?"* → the backend
-   retrieves past sessions by recency and the model answers **only** from that
-   retrieved context. If the answer isn't there, it says so instead of guessing.
+   retrieves the most relevant past sessions (by semantic similarity, or recency
+   as a fallback) and the model answers **only** from that retrieved context. If
+   the answer isn't there, it says so instead of guessing — and shows the meetings
+   it searched, each one click away.
 
 Two design choices worth calling out, because they're the ones people ask about:
 
 - **Extraction runs once, at the end** — not every few seconds. Continuous
   extraction burns tokens to produce worse structure, because the model can't see
   where the conversation landed until it lands.
-- **Retrieval is by recency, not embeddings.** At the scale where a memory layer
-  has to *earn* trust, a vector index adds a failure mode (silently retrieving
-  the wrong thing) without adding an answer. It's a roadmap item, not a v1.
+- **Retrieval is semantic, with a recency fallback.** Each session is embedded
+  (`gemini-embedding-001`, 768-dim) and recall finds the most *relevant* past
+  meetings by pgvector similarity — not just the most recent. Where pgvector
+  isn't set up it falls back to recency, so the app runs either way. (This was
+  recency-only by design in the 2-3 day prototype; it graduated to vector search
+  once the project outgrew that scope — see [docs/ROADMAP.md](docs/ROADMAP.md).)
 
 ## What's actually built
 
@@ -85,27 +91,34 @@ Honest status, because a demo that overclaims is worse than a small one that doe
 | Live transcription, both sides | ⚠️ Built and building clean; needs a real two-party call to confirm |
 | Wake-phrase → task tray | ✅ Verified, handles phrases split across pauses |
 | End-of-session extraction | ✅ Verified against live Gemini |
+| Typed memory (six categories) | ✅ Extracted, stored (`memory` column) and shown in Summary, Review and the PDF |
 | Supabase persistence | ✅ Verified |
-| Cross-session recall | ✅ Verified, including date-relative questions |
+| Cross-session recall | ✅ Verified, including date-relative questions; answers cite the meetings searched |
+| Semantic recall (pgvector) | ✅ Built; gated behind the pgvector migration, recency fallback until then |
+| Contradiction detection | ✅ On-demand; flags where a session reverses an earlier decision |
+| Pre-meeting briefing | ✅ Open commitments + context before a session, no AI call |
+| Per-session PDF export | ✅ Summary, memory and transcript as a styled PDF |
 | Installable from the browser (PWA) | ✅ Manifest, icons and service worker in place |
 | Speaker attribution (you / them) | ✅ Two separate streams, no diarization model |
-| Session review screen | ✅ Master–detail, grouped by date, verified against 40 real sessions |
+| Session review screen | ✅ Master–detail, grouped by date, verified against real sessions |
 | Auth / multi-user | ❌ Out of scope — single-user prototype, RLS off |
 
 ## Stack
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend | React + Vite | Four screens, state-based switching — no router needed |
+| Frontend | React + Vite | Five screens, state-based switching — no router needed |
 | Transcription | `gemini-3.5-transcribe-live` | Realtime, free tier, and accepts a raw stream — which is what makes capturing the other participant possible |
-| Backend | FastAPI | Five routes; `/docs` gives a live API explorer |
+| Backend | FastAPI | `/docs` gives a live API explorer |
 | AI | `gemini-3.6-flash`, `temperature: 0` | Structured output via `response_schema` enforces the JSON contract |
-| Database | Supabase | Postgres without running Postgres |
+| Embeddings | `gemini-embedding-001`, 768-dim | Semantic recall; separate quota from the chat model |
+| Database | Supabase + **pgvector** | Postgres without running Postgres; vector column + similarity search for recall |
 
 The provider is chosen at runtime by which key is in `.env` (`GEMINI_API_KEY` vs
 `OPENAI_API_KEY`), and the prompts live in [`prompts/`](prompts/) as files rather
 than string literals — so swapping models is a one-file change and the
-`{summary, tasks, facts}` contract holds either way.
+`{summary, memory, tasks, facts}` contract holds either way (`tasks` and `facts`
+are flattened views of `memory`, kept for backward compatibility).
 
 Temperature is pinned to `0` everywhere. A demo that answers differently on the
 second run isn't a demo.
@@ -115,11 +128,11 @@ audio paths, why audio bypasses the backend, how echo and session expiry are
 handled, and the request lifecycle for every route.
 
 ```
-backend/     FastAPI app, Supabase client, LLM calls, demo seeder
-docs/        system design
-frontend/    React + Vite, four screens, PWA manifest
-database/    schema.sql
-prompts/     extraction + recall prompts
+backend/     FastAPI app, Supabase client, LLM + embedding calls, demo seeder, embed backfill
+docs/        system design + roadmap
+frontend/    React + Vite, five screens, PWA manifest
+database/    schema.sql (base tables + optional memory / pgvector migrations)
+prompts/     extraction + recall + contradiction prompts
 ```
 
 ---
@@ -155,6 +168,16 @@ Set **only one** AI key — the backend refuses to run a call if both are presen
 Run [`database/schema.sql`](database/schema.sql) in the Supabase SQL editor.
 It's idempotent. RLS is intentionally off: there's no auth in this prototype, and
 enabling it without policies denies every insert.
+
+The file's later blocks are **optional upgrades** — the app runs without them and
+detects each at startup:
+
+- the `memory` column turns on persisted categories in Review and the PDF;
+- the **pgvector** block (extension + `embedding` column + `match_sessions`)
+  turns on semantic recall. After running it, backfill existing rows:
+  `cd backend && python embed_sessions.py`.
+
+Without either, the app falls back cleanly (flat tasks/facts, recency recall).
 
 **3. Frontend**
 
@@ -251,15 +274,17 @@ Android, so on a phone the app records your microphone alone.
 
 ## Roadmap
 
-Deliberately *not* built yet — the prototype is one complete loop, not many
-incomplete features.
+The core loop plus several memory features are built (see the status table
+above); [docs/ROADMAP.md](docs/ROADMAP.md) has the full plan. Still ahead, in
+rough order:
 
-- **Capture the other side of a call** — `getDisplayMedia` tab audio, which also
-  yields a rough "them vs me" split without a diarization model
 - **Memory Graph** — link decisions to the requirements and people they touch
-- **Contradiction detection** across meetings ("this reverses what you decided in March")
-- **Typed memory columns** — the six categories drive extraction today but are
-  flattened into a string array in storage
+- **Task lifecycle** — done/blocked state, so "what's outstanding?" reflects reality
+- **Proactive pre-meeting brief** — an LLM-synthesized version of today's
+  rule-based briefing
+- **Live proactive alerts** and **integrations** (Slack/Jira/calendar) — larger,
+  and the first one changes the "nothing heavy runs live" rule, so both are
+  deliberately later phases
 
 ## License
 

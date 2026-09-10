@@ -755,6 +755,9 @@ details > *:not(summary) { margin-top: var(--gap-sm); }
   margin-right: 0.15rem;
 }
 
+/* "· by meaning" — marks that similarity search, not recency, answered. */
+.retrieval-tag { font-style: normal; color: var(--accent); }
+
 .source-chip {
   all: unset;
   cursor: pointer;

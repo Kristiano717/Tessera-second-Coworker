@@ -15,8 +15,16 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from ai import answer_recall, create_live_token, detect_contradictions, generate_summary
-from db import get_client, has_memory_column
+from ai import (
+    EMBED_DIM,
+    answer_recall,
+    create_live_token,
+    detect_contradictions,
+    embed_text,
+    generate_summary,
+    session_embedding_text,
+)
+from db import get_client, has_memory_column, has_semantic_search
 from report import build_session_report
 
 # How many past sessions to pull into the recall context. Retrieval is by
@@ -183,6 +191,24 @@ def summarize_session(session_id: str):
         _insert_tasks(session_id, extracted["tasks"])
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to save extracted tasks: {exc}")
+
+    # Embed the session for semantic recall, when pgvector is set up. Best
+    # effort and last: it's an extra embedding call plus a write, and a hiccup
+    # here must not fail a summary that already saved. A session that isn't
+    # embedded just won't be found by similarity search until it's backfilled
+    # (embed_sessions.py) — recall still reaches it by recency in the meantime.
+    if has_semantic_search(EMBED_DIM):
+        try:
+            vector = embed_text(
+                session_embedding_text(extracted["summary"], extracted["facts"]),
+                is_query=False,
+            )
+            if vector:
+                get_client().table("sessions").update({"embedding": vector}).eq(
+                    "id", session_id
+                ).execute()
+        except Exception:
+            pass  # non-fatal — see above
 
     return extracted
 
@@ -369,28 +395,55 @@ def recall(body: RecallRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Question is empty.")
 
-    try:
-        result = (
-            get_client()
-            .table("sessions")
-            # id is selected too now, so the open tasks for these sessions can
-            # be pulled in as recall context (below). Without them the model
-            # had to reconstruct outstanding work from summary prose, which is
-            # exactly the kind of guessing this product is meant not to do.
-            .select("id,summary,facts,timestamp")
-            # Only summarized sessions are useful context — a row whose
-            # summary is still null was never run through extraction.
-            .not_.is_("summary", "null")
-            .order("timestamp", desc=True)
-            .limit(RECALL_SESSION_LIMIT)
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to retrieve past sessions: {exc}")
+    # Retrieval: similarity search when pgvector is set up, else recency.
+    # `retrieval` is returned so the UI can say which one answered. Either
+    # way, sessions end up oldest-first so the recall prompt reads dates in
+    # order (format_session_context expects that) — similarity decides *which*
+    # sessions, chronology decides how they're read.
+    sessions = None
+    retrieval = "recent"
+    if has_semantic_search(EMBED_DIM):
+        try:
+            qvec = embed_text(question, is_query=True)
+            rows = (
+                get_client()
+                .rpc(
+                    "match_sessions",
+                    {"query_embedding": qvec, "match_count": RECALL_SESSION_LIMIT},
+                )
+                .execute()
+            ).data
+            # match_sessions only returns embedded rows; if none are embedded
+            # yet (migration run but nothing backfilled), fall through to
+            # recency rather than answering from an empty set.
+            if rows:
+                sessions = sorted(rows, key=lambda s: s.get("timestamp") or "")
+                retrieval = "semantic"
+        except Exception:
+            sessions = None  # any trouble → recency, below
 
-    # Retrieved newest-first (so the limit keeps the most recent), but
-    # reversed for the prompt so the model reads them oldest-to-newest.
-    sessions = list(reversed(result.data))
+    if sessions is None:
+        try:
+            result = (
+                get_client()
+                .table("sessions")
+                # id is selected too now, so the open tasks for these sessions
+                # can be pulled in as recall context (below). Without them the
+                # model had to reconstruct outstanding work from summary prose,
+                # which is exactly the kind of guessing this is meant not to do.
+                .select("id,summary,facts,timestamp")
+                # Only summarized sessions are useful context — a row whose
+                # summary is still null was never run through extraction.
+                .not_.is_("summary", "null")
+                .order("timestamp", desc=True)
+                .limit(RECALL_SESSION_LIMIT)
+                .execute()
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to retrieve past sessions: {exc}")
+        # Retrieved newest-first (so the limit keeps the most recent), but
+        # reversed for the prompt so the model reads them oldest-to-newest.
+        sessions = list(reversed(result.data))
 
     # Attach each session's open tasks so "what's still outstanding?" is
     # answered from stored tasks, not inferred from the summary. One query
@@ -425,4 +478,9 @@ def recall(body: RecallRequest):
         {"id": s["id"], "timestamp": s["timestamp"]}
         for s in sorted(sessions, key=lambda s: s["timestamp"], reverse=True)
     ]
-    return {"answer": answer, "sessions_searched": len(sessions), "sources": sources}
+    return {
+        "answer": answer,
+        "sessions_searched": len(sessions),
+        "sources": sources,
+        "retrieval": retrieval,  # "semantic" | "recent"
+    }

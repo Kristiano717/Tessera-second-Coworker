@@ -3,9 +3,10 @@ import { askRecall } from '../api.js'
 import Markdown from '../components/Markdown.jsx'
 
 // Milestone 5 ("recall works"): the last piece of the loop. User asks a
-// question, backend pulls recent session summaries + facts by recency
-// (no vector search per CLAUDE.md) and the LLM answers from that context
-// alone — saying it doesn't know rather than guessing.
+// question; the backend retrieves the relevant past sessions — by semantic
+// similarity when pgvector is set up, otherwise by recency — and the LLM
+// answers from that context alone, saying it doesn't know rather than
+// guessing. `result.retrieval` says which path answered.
 function sourceLabel(ts) {
   const date = new Date(ts)
   const today = new Date()
@@ -113,6 +114,9 @@ export default function Recall({ onBack, onOpenSession }) {
             <div className="recall-sources">
               <span className="recall-sources-label">
                 Searched {result.sessions_searched} session{result.sessions_searched === 1 ? '' : 's'}
+                {/* Which retrieval answered: similarity search (pgvector) or
+                    the recency fallback when it isn't set up. */}
+                {result.retrieval === 'semantic' && <em className="retrieval-tag"> · by meaning</em>}
               </span>
               {dedupeByDay(result.sources).map((s) => (
                 <button

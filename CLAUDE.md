@@ -86,6 +86,7 @@ Keep responsibilities separated. Don't create new top-level folders without a re
 | summary | text |
 | facts | jsonb (array of strings) |
 | memory | jsonb (array of {category, text}) |
+| embedding | vector(768) — pgvector, for semantic recall |
 | timestamp | datetime |
 
 > `facts` was added during Milestone 4 with explicit sign-off — it wasn't in
@@ -104,6 +105,12 @@ Keep responsibilities separated. Don't create new top-level folders without a re
 > migration still works, and rows written before it existed stay valid.
 > The extraction contract remains a superset of the locked one — see the
 > AI Behavior Rules note below.
+>
+> `embedding` (pgvector `vector(768)`) powers semantic recall — see the
+> signed-off deviation under Memory recall. Same shape of decision as
+> `memory`: additive, nullable, and gated (`db.has_semantic_search`), so a
+> project without the pgvector migration falls back to recency and nothing
+> breaks. It needs the `vector` extension enabled (Supabase built-in).
 
 **tasks**
 
@@ -147,7 +154,20 @@ Nothing else runs continuously. No per-sentence AI calls, no background extracti
 
 Store the result. Don't add extra fields the schema doesn't have a place for.
 
-**Memory recall**: retrieve relevant past `sessions` rows (by recency/date — no vector search, no embeddings), pass their summaries as context, and ask the LLM to answer using only that retrieved context. If the answer isn't in the retrieved context, say so rather than guessing.
+**Memory recall**: retrieve relevant past `sessions` rows, pass their summaries (and facts and open tasks) as context, and ask the LLM to answer using only that retrieved context. If the answer isn't in the retrieved context, say so rather than guessing.
+
+> **Deviation, signed off — semantic retrieval.** The original rule said
+> "by recency/date — no vector search, no embeddings," and "Vector database"
+> was on the out-of-scope list. That was the right call for a 2-3 day
+> prototype; once the project grew past that, semantic recall was added with
+> explicit sign-off. Retrieval now uses pgvector similarity search when it's
+> set up (each session embedded with `gemini-embedding-001` at 768 dims,
+> queried via the `match_sessions` function), and **falls back to the
+> original recency ordering** when it isn't — `db.has_semantic_search`
+> gates it, so a project that hasn't run the pgvector migration behaves
+> exactly as before. Embedding happens once at summarize time (not during a
+> meeting), so the live-behaviour rules are untouched. See
+> [docs/ROADMAP.md](docs/ROADMAP.md) and database/schema.sql.
 
 ## UI (five screens, no more)
 
@@ -192,7 +212,7 @@ Do not build these. If asked to add one, remind the user it's outside the locked
 - WASAPI / CoreAudio
 - Memory Graph
 - ~~Contradiction detection~~ — **built, with explicit sign-off** (see deviation below)
-- Vector database
+- ~~Vector database~~ — **built, with explicit sign-off**: pgvector semantic recall, gated behind a migration with a recency fallback (see the Memory recall deviation above)
 - Continuous/real-time extraction (every few seconds) — extraction happens once, after the session ends
 
 These are roadmap-only, for later phases: Memory OS, Memory Graph, cross-meeting contradiction detection, desktop app, WASAPI/CoreAudio, universal meeting compatibility, ~~pre-meeting briefing~~ (built — see below), live proactive alerts. The full roadmap lives in [docs/ROADMAP.md](docs/ROADMAP.md).

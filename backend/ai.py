@@ -50,6 +50,16 @@ OPENAI_MODEL = "gpt-5"
 # a short-lived token minted by create_live_token() below.
 GEMINI_LIVE_MODEL = "gemini-3.5-transcribe-live"
 
+# Embeddings, for semantic recall (see database/schema.sql's pgvector setup).
+# 768 dims: gemini-embedding-001 defaults to 3072 but takes an explicit
+# output_dimensionality, and 768 is the sweet spot — small enough to index
+# and store cheaply, large enough that retrieval quality holds at this scale.
+# The number is fixed here AND in the `vector(768)` column; they must match.
+# (text-embedding-004 is 404 for new keys, same as the retired flash models.)
+GEMINI_EMBED_MODEL = "gemini-embedding-001"
+OPENAI_EMBED_MODEL = "text-embedding-3-small"
+EMBED_DIM = 768
+
 # Cap on the model's hidden reasoning, and the single biggest lever on how
 # long a session takes to summarise.
 #
@@ -262,6 +272,71 @@ def generate_summary(transcript: str) -> dict:
     extracted = json.loads(raw)
     _normalize_memory(extracted)
     return extracted
+
+
+def embed_text(text: str, *, is_query: bool) -> list[float]:
+    """One embedding vector for semantic recall.
+
+    `is_query` picks the task type: a stored session is a RETRIEVAL_DOCUMENT,
+    the recall question a RETRIEVAL_QUERY. Asymmetric task types are how
+    embedding models earn their retrieval quality — a question and the
+    document that answers it don't look alike as plain text, and telling the
+    model which side it's embedding lets it place them near each other anyway.
+
+    Returns a list of EMBED_DIM floats. Retries on transient errors like the
+    LLM calls do (embeddings have their own, separate quota).
+    """
+    text = (text or "").strip()
+    if not text:
+        return []
+    provider = _active_provider()
+    for backoff in (*_RETRY_BACKOFFS, None):
+        try:
+            if provider == "gemini":
+                return _embed_gemini(text, is_query)
+            return _embed_openai(text)
+        except Exception as exc:
+            if backoff is None or not _is_transient(exc):
+                raise
+            time.sleep(backoff)
+
+
+def _embed_gemini(text: str, is_query: bool) -> list[float]:
+    from google import genai as google_genai
+    from google.genai import types
+
+    client = google_genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    result = client.models.embed_content(
+        model=GEMINI_EMBED_MODEL,
+        contents=text,
+        config=types.EmbedContentConfig(
+            output_dimensionality=EMBED_DIM,
+            task_type="RETRIEVAL_QUERY" if is_query else "RETRIEVAL_DOCUMENT",
+        ),
+    )
+    return list(result.embeddings[0].values)
+
+
+def _embed_openai(text: str) -> list[float]:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    # text-embedding-3-* support a shorter dimensions param, so the vector
+    # matches the column regardless of provider. OpenAI has no query/document
+    # task-type split — the same call serves both.
+    resp = client.embeddings.create(
+        model=OPENAI_EMBED_MODEL, input=text, dimensions=EMBED_DIM
+    )
+    return list(resp.data[0].embedding)
+
+
+def session_embedding_text(summary: str, facts: list[str]) -> str:
+    """The text a session is embedded from: its summary plus its facts. Both
+    matter for retrieval — the summary carries the gist, the facts carry the
+    specific decisions a question might key on."""
+    parts = [(summary or "").strip()]
+    parts += [f for f in (facts or []) if f]
+    return "\n".join(p for p in parts if p)
 
 
 def format_session_context(sessions: list[dict]) -> str:

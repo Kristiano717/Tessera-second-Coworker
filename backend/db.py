@@ -52,3 +52,26 @@ def has_memory_column() -> bool:
             # here as "not present" and carry on without persistence.
             _has_memory_column = False
     return _has_memory_column
+
+
+# Whether the pgvector setup for semantic recall exists — the `embedding`
+# column and the match_sessions() function (database/schema.sql). Same story
+# as the memory column: it needs a SQL migration this REST-only backend can't
+# run, so recall falls back to recency-ordered retrieval until it's present.
+# Probed by calling the search function with a zero vector; a missing function
+# or extension makes that fail, which we read as "not set up".
+_has_semantic_search: bool | None = None
+
+
+def has_semantic_search(embed_dim: int) -> bool:
+    global _has_semantic_search
+    if _has_semantic_search is None:
+        try:
+            get_client().rpc(
+                "match_sessions",
+                {"query_embedding": [0.0] * embed_dim, "match_count": 1},
+            ).execute()
+            _has_semantic_search = True
+        except Exception:
+            _has_semantic_search = False
+    return _has_semantic_search
