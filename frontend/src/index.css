@@ -482,6 +482,117 @@ button:disabled { opacity: 0.45; cursor: default; transform: none; }
   font-size: 0.9rem;
 }
 
+/* ---------- pre-meeting briefing ---------- */
+
+.briefing {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.briefing-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+}
+
+.briefing-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--gap);
+}
+
+.briefing-col h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  color: var(--text);
+}
+
+.briefing-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+
+.briefing-col li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* The date each item traces back to, in the quiet mono voice. */
+.briefing-col li em {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ---------- contradiction check ---------- */
+
+.contradictions { display: flex; flex-direction: column; gap: var(--gap-sm); }
+
+.conflict-clear { color: var(--task); }
+
+.conflict-list { display: flex; flex-direction: column; gap: var(--gap-sm); }
+.conflict-list h2 { display: flex; align-items: center; gap: 0.55rem; color: var(--bad); }
+
+/* A conflict reads as a diff: what it is now, over what it was before. The
+   left rule and warm ground mark it as something that needs attention,
+   distinct from the neutral memory records. */
+.conflict {
+  background: var(--bad-soft);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--bad);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.conflict-now, .conflict-then {
+  display: grid;
+  grid-template-columns: 3rem 1fr;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.conflict-now { color: var(--text); }
+.conflict-then { color: var(--text-muted); }
+.conflict-then em { font-style: normal; color: var(--text-faint); }
+
+.conflict-tag {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bad);
+  align-self: center;
+}
+.conflict-tag.then { color: var(--text-faint); }
+
+.conflict-note {
+  font-size: 0.84rem;
+  color: var(--text-faint);
+  padding-left: 3.6rem;
+}
+
 /* ---------- records ---------- */
 
 .tray { display: flex; flex-direction: column; gap: var(--gap-sm); }

@@ -92,6 +92,17 @@ export function sessionReportUrl(sessionId) {
   return `${API_BASE}/sessions/${sessionId}/report.pdf`
 }
 
+export async function checkContradictions(sessionId) {
+  // On-demand: only called when the user presses the button on a session, so
+  // it costs an LLM call only when someone actually wants the check.
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/contradictions`, { method: 'POST' })
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Contradiction check failed (${res.status}): ${body}`)
+  }
+  return res.json() // { contradictions: [{ current, prior, prior_date, note }], compared_against }
+}
+
 export async function askRecall(question) {
   const res = await fetch(`${API_BASE}/recall`, {
     method: 'POST',

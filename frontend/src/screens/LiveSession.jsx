@@ -3,6 +3,7 @@ import { useTranscript } from '../hooks/useTranscript.js'
 import { saveSession, saveTasks } from '../api.js'
 import { findAllWakePhraseMatches } from '../wakePhrase.js'
 import Records from '../components/Records.jsx'
+import Briefing from '../components/Briefing.jsx'
 
 // Milestone 1 gave us the live transcript, Milestone 2 saves the session.
 // Milestone 3 ("tasks work") adds this: wake-phrase detection runs live,
@@ -118,6 +119,11 @@ export default function LiveSession({ onEnd, onCancel }) {
           Your microphone is captured directly. The other person's voice comes out of your
           speakers, not your mic — so it has to be taken from the meeting tab instead.
         </p>
+
+        {/* Pre-meeting briefing: what's already on record before you go in.
+            Reads stored memory only — no AI call — so it can't stall the
+            start of a session. */}
+        <Briefing />
 
         <ol className="preflight">
           <li>

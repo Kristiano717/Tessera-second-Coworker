@@ -191,11 +191,26 @@ Do not build these. If asked to add one, remind the user it's outside the locked
 - Desktop background agent
 - WASAPI / CoreAudio
 - Memory Graph
-- Contradiction detection
+- ~~Contradiction detection~~ — **built, with explicit sign-off** (see deviation below)
 - Vector database
 - Continuous/real-time extraction (every few seconds) — extraction happens once, after the session ends
 
-These are roadmap-only, for later phases: Memory OS, Memory Graph, cross-meeting contradiction detection, desktop app, WASAPI/CoreAudio, universal meeting compatibility, pre-meeting briefing, live proactive alerts.
+These are roadmap-only, for later phases: Memory OS, Memory Graph, cross-meeting contradiction detection, desktop app, WASAPI/CoreAudio, universal meeting compatibility, ~~pre-meeting briefing~~ (built — see below), live proactive alerts. The full roadmap lives in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+> **Two roadmap features pulled forward, with explicit sign-off.** Both were
+> chosen specifically because they extend the memory differentiator *without*
+> breaking the locked rules — neither runs during a meeting, and neither adds
+> to the automatic post-session flow.
+>
+> - **Contradiction detection** — an on-demand check (`POST
+>   /sessions/{id}/contradictions`) that flags where a session's decisions
+>   reverse an earlier meeting's. It's one LLM call, fired only when the user
+>   presses the button, so the "exactly one automatic call after a meeting
+>   ends" rule is untouched. It reads stored facts only; nothing runs live.
+> - **Pre-meeting briefing** — a panel on the existing Live Session screen
+>   showing open commitments and established context before you record. It
+>   reads stored memory and makes **no** AI call, so it's clear of "nothing
+>   heavy runs live." No new screen, no new schema.
 
 ## Engineering Principles (non-negotiable)
 

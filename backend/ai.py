@@ -1,9 +1,14 @@
-"""The two LLM calls this prototype makes, per CLAUDE.md's AI Behavior Rules:
+"""The LLM calls this prototype makes, per CLAUDE.md's AI Behavior Rules:
 
-1. generate_summary() — one call after a session ends, returning exactly
-   {summary, tasks, facts}.
+1. generate_summary() — one call after a session ends, returning
+   {summary, memory, tasks, facts}.
 2. answer_recall() — one call when the user asks about past meetings,
    answering strictly from retrieved session notes (plain text, no schema).
+3. detect_contradictions() — an on-demand call (signed-off roadmap feature,
+   not in the automatic loop) that flags where a session's decisions conflict
+   with earlier ones. It never runs during a meeting and never fires as part
+   of the post-session flow, so the "exactly one call after a meeting ends"
+   rule is untouched — this only happens when the user explicitly asks.
 
 Provider is picked by which key is set in backend/.env (GEMINI_API_KEY vs
 OPENAI_API_KEY), per CLAUDE.md's rule to check the .env rather than assume.
@@ -100,6 +105,30 @@ def _load_system_instruction(filename: str) -> str:
 
 EXTRACTION_INSTRUCTION = _load_system_instruction("extraction_prompt.md")
 RECALL_INSTRUCTION = _load_system_instruction("recall_prompt.md")
+CONTRADICTION_INSTRUCTION = _load_system_instruction("contradiction_prompt.md")
+
+# One conflict between a current statement and a prior one. `prior_date` is
+# optional so the model isn't forced to fabricate one when the input didn't
+# carry it.
+CONTRADICTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "contradictions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "current": {"type": "string"},
+                    "prior": {"type": "string"},
+                    "prior_date": {"type": "string"},
+                    "note": {"type": "string"},
+                },
+                "required": ["current", "prior", "note"],
+            },
+        }
+    },
+    "required": ["contradictions"],
+}
 
 
 def _active_provider() -> str:
@@ -280,6 +309,56 @@ def answer_recall(question: str, sessions: list[dict]) -> str:
         f"Question: {question}"
     )
     return _call_llm(RECALL_INSTRUCTION, user_content, schema=None).strip()
+
+
+def detect_contradictions(current_items: list[str], past_sessions: list[dict]) -> list[dict]:
+    """Finds where a session's decisions/facts conflict with earlier ones.
+
+    On-demand only — never part of the automatic post-session flow, so the
+    "exactly one LLM call after a meeting ends" rule stays intact. Returns a
+    list of {current, prior, prior_date, note}. Short-circuits without a call
+    when there's nothing on either side to compare.
+    """
+    current_items = [c.strip() for c in current_items if c and c.strip()]
+    if not current_items or not past_sessions:
+        return []
+
+    # Prior context: each earlier meeting's facts, dated, oldest first so the
+    # model reads history forward. Only facts/decisions matter here — an open
+    # task isn't something a later meeting contradicts.
+    prior_blocks = []
+    for s in past_sessions:
+        facts = [f for f in (s.get("facts") or []) if f]
+        if not facts:
+            continue
+        date = (s.get("timestamp") or "")[:10]
+        prior_blocks.append(
+            f"Meeting on {date}:\n" + "\n".join(f"- {f}" for f in facts)
+        )
+    if not prior_blocks:
+        return []
+
+    user_content = (
+        "PRIOR MEMORY (earlier meetings):\n\n"
+        + "\n\n".join(prior_blocks)
+        + "\n\nCURRENT MEETING (the one being checked):\n"
+        + "\n".join(f"- {c}" for c in current_items)
+    )
+    raw = _call_llm(CONTRADICTION_INSTRUCTION, user_content, CONTRADICTION_SCHEMA)
+    result = json.loads(raw)
+    # Keep only well-formed conflicts, so a stray shape can't reach the UI.
+    out = []
+    for c in result.get("contradictions") or []:
+        if isinstance(c, dict) and (c.get("current") or "").strip() and (c.get("prior") or "").strip():
+            out.append(
+                {
+                    "current": c["current"].strip(),
+                    "prior": c["prior"].strip(),
+                    "prior_date": (c.get("prior_date") or "").strip(),
+                    "note": (c.get("note") or "").strip(),
+                }
+            )
+    return out
 
 
 # ---------------------------------------------------------------------------

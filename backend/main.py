@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from ai import answer_recall, create_live_token, generate_summary
+from ai import answer_recall, create_live_token, detect_contradictions, generate_summary
 from db import get_client, has_memory_column
 from report import build_session_report
 
@@ -295,6 +295,45 @@ def _load_session_full(session_id: str) -> dict:
 @app.get("/sessions/{session_id}")
 def get_session(session_id: str):
     return _load_session_full(session_id)
+
+
+@app.post("/sessions/{session_id}/contradictions")
+def session_contradictions(session_id: str):
+    """Flags where this session's decisions/facts conflict with earlier ones.
+
+    On demand only — the frontend calls this when the user asks, never
+    automatically. That keeps the post-session flow at exactly one LLM call
+    (the summary) per CLAUDE.md; this is a separate, explicit action and a
+    signed-off roadmap feature, so it costs a call only when someone wants it.
+    """
+    session = _load_session_full(session_id)
+    current_items = session.get("facts") or []
+    if not current_items:
+        # Nothing decided in this session to conflict with anything — skip the
+        # call rather than asking the model to compare against an empty side.
+        return {"contradictions": [], "compared_against": 0}
+
+    # Earlier meetings only: a conflict is with what was decided *before* this.
+    try:
+        past = (
+            get_client()
+            .table("sessions")
+            .select("timestamp,facts,summary")
+            .lt("timestamp", session["timestamp"])
+            .not_.is_("summary", "null")
+            .order("timestamp", desc=True)
+            .limit(RECALL_SESSION_LIMIT)
+            .execute()
+        ).data
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to load prior sessions: {exc}")
+
+    try:
+        conflicts = detect_contradictions(current_items, list(reversed(past)))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Contradiction check failed: {exc}")
+
+    return {"contradictions": conflicts, "compared_against": len(past)}
 
 
 @app.get("/sessions/{session_id}/report.pdf")

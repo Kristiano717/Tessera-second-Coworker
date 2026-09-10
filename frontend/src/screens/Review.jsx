@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fetchSession, fetchSessions, sessionReportUrl } from '../api.js'
 import Records from '../components/Records.jsx'
 import Memory from '../components/Memory.jsx'
+import Contradictions from '../components/Contradictions.jsx'
 import Markdown from '../components/Markdown.jsx'
 import DateCalendar from '../components/DateCalendar.jsx'
 
@@ -240,6 +241,10 @@ export default function Review({ onBack, initialSessionId = null }) {
                     <Records items={detail.facts} kind="fact" label="Key facts" empty="None extracted." />
                   </>
                 )}
+
+                {/* On-demand conflict check against earlier meetings.
+                    Keyed by id so switching sessions resets its state. */}
+                <Contradictions key={detail.id} sessionId={detail.id} />
 
                 <details>
                   <summary>Raw transcript</summary>
