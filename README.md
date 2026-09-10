@@ -110,7 +110,7 @@ Honest status, because a demo that overclaims is worse than a small one that doe
 | Frontend | React + Vite | Five screens, state-based switching — no router needed |
 | Transcription | `gemini-3.5-transcribe-live` | Realtime, free tier, and accepts a raw stream — which is what makes capturing the other participant possible |
 | Backend | FastAPI | `/docs` gives a live API explorer |
-| AI | `gemini-3.6-flash`, `temperature: 0` | Structured output via `response_schema` enforces the JSON contract |
+| AI | `gemini-3.5-flash-lite`, `temperature: 0` | Structured output via `response_schema` enforces the JSON contract; flash-lite for its generous free-tier daily limit |
 | Embeddings | `gemini-embedding-001`, 768-dim | Semantic recall; separate quota from the chat model |
 | Database | Supabase + **pgvector** | Postgres without running Postgres; vector column + similarity search for recall |
 

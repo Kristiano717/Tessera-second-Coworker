@@ -18,9 +18,10 @@ swapping providers is just an .env change.
 NOTE ON MODEL CHOICE: CLAUDE.md names gemini-2.0-flash / gemini-2.5-flash
 for the dev-time Gemini path. As of this build, both are retired for new
 API keys (Google's API returns 404 pointing at a replacement). Verified
-against the live API before picking: gemini-3.6-flash is the closest
-available equivalent (still the free-tier "flash" tier) and was confirmed
-working with this exact {summary, tasks, facts} schema. Flagging this here
+against the live API before picking: gemini-3.5-flash-lite is used — see the
+GEMINI_MODEL note below for why flash-lite over plain flash (the free-tier
+daily request cap). It was confirmed working with the current
+{summary, memory, tasks, facts} schema. Flagging this here
 since it's a deviation from the locked spec's exact model name, forced by
 the models no longer existing rather than a discretionary swap.
 
@@ -40,7 +41,14 @@ load_dotenv()
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-GEMINI_MODEL = "gemini-3.6-flash"
+# gemini-3.5-flash-lite, not gemini-3.6-flash. The 3.6-flash free tier caps at
+# 20 requests/day (GenerateRequestsPerDayPerProjectPerModel-FreeTier), which is
+# far too tight for a demo that recalls a few times — one rehearsal exhausts it
+# and the next call 429s on stage. The free daily limit is *per model*, and the
+# flash-lite tier is much more generous; verified 3.5-flash-lite returns this
+# exact {summary, memory, tasks, facts} schema in ~2s with correct
+# categorisation. Pinned (not `-latest`) so the demo stays deterministic.
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 OPENAI_MODEL = "gpt-5"
 
 # Realtime speech-to-text, used for live transcription of both sides of a

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { askRecall } from '../api.js'
+import { friendlyError } from '../lib/errors.js'
 import Markdown from '../components/Markdown.jsx'
 
 // Milestone 5 ("recall works"): the last piece of the loop. User asks a
@@ -96,7 +97,7 @@ export default function Recall({ onBack, onOpenSession }) {
         </div>
       )}
 
-      {state === 'error' && <div className="error-banner">{error}</div>}
+      {state === 'error' && <div className="error-banner">{friendlyError(error)}</div>}
 
       {state === 'done' && result && (
         <div className="recall-answer">

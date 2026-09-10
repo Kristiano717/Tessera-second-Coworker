@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { checkContradictions } from '../api.js'
+import { friendlyError } from '../lib/errors.js'
 
 // On-demand conflict check for one session: does anything decided here
 // contradict an earlier meeting? This is the thing a transcription tool
@@ -44,7 +45,7 @@ export default function Contradictions({ sessionId }) {
         </button>
       )}
 
-      {state === 'error' && <div className="error-banner">{error}</div>}
+      {state === 'error' && <div className="error-banner">{friendlyError(error)}</div>}
 
       {state === 'done' && conflicts.length === 0 && (
         <p className="hint conflict-clear">

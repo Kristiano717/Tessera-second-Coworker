@@ -53,8 +53,11 @@ Do not introduce a different framework, database, or AI provider than what's abo
 >
 > - **The Gemini model names in the AI row are stale.** `gemini-2.0-flash` and
 >   `gemini-2.5-flash` are both retired for new API keys (the API 404s). The
->   build uses `gemini-3.6-flash`, verified against the live API with this exact
->   `{summary, tasks, facts}` schema. See the note at the top of `backend/ai.py`.
+>   build uses `gemini-3.5-flash-lite`, verified against the live API with the
+>   `{summary, memory, tasks, facts}` schema — flash-lite chosen over the
+>   heavier flash models specifically for its far higher free-tier daily
+>   request limit (`gemini-3.6-flash` free tier caps at 20/day, which a single
+>   demo rehearsal exhausts). See the note at the top of `backend/ai.py`.
 >
 > - **Deployment is no longer local-only.** The app is a PWA meant to be
 >   installed from a home screen, which requires it to work without a laptop

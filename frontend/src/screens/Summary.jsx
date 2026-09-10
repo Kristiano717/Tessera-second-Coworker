@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { summarizeSession, sessionReportUrl } from '../api.js'
+import { friendlyError } from '../lib/errors.js'
 import Records from '../components/Records.jsx'
 import Memory from '../components/Memory.jsx'
 import Contradictions from '../components/Contradictions.jsx'
@@ -77,7 +78,7 @@ export default function Summary({ session, onRestart, onRecall }) {
           )}
         </>
       )}
-      {aiState === 'error' && <div className="error-banner">Summary generation failed: {aiError}</div>}
+      {aiState === 'error' && <div className="error-banner">Summary generation failed: {friendlyError(aiError)}</div>}
 
       {aiState === 'done' && (
         <>
