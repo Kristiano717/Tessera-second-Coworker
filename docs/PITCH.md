@@ -44,6 +44,9 @@ Three things a transcript search structurally cannot do:
    and says "I don't have that" rather than inventing. Every answer links to its
    sources.
 
+For the "why won't Apple/Google just kill you?" question — how this differs from
+a general assistant like iPhone 18's Siri AI — see [POSITIONING.md](POSITIONING.md).
+
 ## What's built (not slideware)
 
 The full loop runs end to end, live: capture (both sides, speaker-labelled) →
